@@ -35,7 +35,12 @@ public class Schedule {
 		int [] out = new int [tasks.length];
 		time++;
 		/** Begin **/
-		System.out.println("QueueSize: " + queue.size());
+		System.out.print("QueueSize: " + queue.size() + " Queue {");
+		ListIterator<Task> lr = queue.listIterator();
+		while (lr.hasNext()) {
+			System.out.print(lr.next().id + " , ");
+		}
+		System.out.println("\n");
 		Task.AsyncExecRemain = defferableServerExecBuget;
 
 		doneAsyncs = new int[tasks.length];					
@@ -52,31 +57,62 @@ public class Schedule {
 							}
 						}
 				}
-				if (li.hasNext()) {
-					Task currentExecutingTask = li.next();
-					System.out.println ("\tTask: " + (currentExecutingTask.id) + " running at time: " + time);
-					currentExecutingTask.step(true);
-					if (!currentExecutingTask.done) {
-						if (currentExecutingTask.isPeriodic()) {
-							newList.add(currentExecutingTask);
-						} else {
-							if (Task.AsyncExecRemain > 0) newList.add(currentExecutingTask);						
-						}												
-					} else {
-						System.out.println ("\tTask: " + (currentExecutingTask.id) + " done @ time: " + time);
-					}
-					if (currentExecutingTask.SIGQUIT) {
-						doneAsyncs[(int)currentExecutingTask.id] = 1;
-					}
-				}
+				
 				while (li.hasNext()) {
 					Task current = li.next();
-					current.step(false);
-					if (!current.done) newList.add(current);
+					boolean executing = (queue.indexOf(current) == 0);// || passOnPriorityToNext;
+				//	passOnPriorityToNext = false;
+//					if (current.period <= 0 ) {
+//						if (Task.AsyncExecRemain > 0) current.step(executing);
+//						else {
+//							passOnPriorityToNext = true;
+//							current.step(false);
+//						}
+//					} else {
+						current.step(executing);
+						if (executing) System.out.println ("\tTask: " + (current.id) + " running at time: " + time);
 
+					//}
+					if (!current.done) {
+						if (current.period <= 0 ) {
+							if (Task.AsyncExecRemain > 0) newList.add(current);						
+						} else {
+							newList.add(current);
+						}
+					} else {
+						System.out.println ("\tTask: " + (current.id) + " done @ time: " + time);
+					}
+					if (current.SIGQUIT) {
+						doneAsyncs[(int)current.id] = 1;
+					}
 				}
-				queue.clear();				
+//				if (li.hasNext()) {
+//					Task currentExecutingTask = li.next();
+//					System.out.println ("\tTask: " + (currentExecutingTask.id) + " running at time: " + time);
+//					currentExecutingTask.step(true);
+//					if (!currentExecutingTask.done) {
+//						if (currentExecutingTask.isPeriodic()) {
+//							newList.add(currentExecutingTask);
+//						} else {
+//							if (Task.AsyncExecRemain > 0) newList.add(currentExecutingTask);						
+//						}												
+//					} else {
+//						System.out.println ("\tTask: " + (currentExecutingTask.id) + " done @ time: " + time);
+//					}
+//					if (currentExecutingTask.SIGQUIT) {
+//						doneAsyncs[(int)currentExecutingTask.id] = 1;
+//					}
+//				}
+//				while (li.hasNext()) {
+//					Task current = li.next();
+//					current.step(false);
+//					if (!current.done) newList.add(current);
+//
+//				}
+				queue.clear();
+				printQueue("After Clear: ");
 				queue.addAll(newList);
+				printQueue("After newList: ");
 
 				queueTasks ();
 				manageDeferableServer ();
@@ -98,6 +134,14 @@ public class Schedule {
 		return out;
 	}
 
+	private void printQueue (String msg) {
+		System.out.print(msg + "Queue: {");
+		ListIterator<Task> lr = queue.listIterator();
+		while (lr.hasNext()) {
+			System.out.print(lr.next().id + " , ");
+		}
+		System.out.println("\n");
+	}
 	private void manageDeferableServer () {
 		if (time % Math.abs(defferableServerPeriod) == 0) {
 			if (Task.AsyncExecRemain <= 0) {
