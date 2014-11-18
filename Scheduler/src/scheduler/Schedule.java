@@ -5,105 +5,139 @@ import java.util.Collections;
 import java.util.ListIterator;
 
 public class Schedule {
-	protected Task [] tasks;
-	protected long currentTime = -1;
-	ArrayList<Schedule> queue = new ArrayList<Schedule> ();
+	int [] doneAsyncs;
+	static int defferableServerExecBuget = 1;
+	static int defferableServerPeriod = 6;
+	static boolean deferrableServerHasHighestPriority = true;
 	
+	boolean feasible = true;
+	int notFeasibleAt = -1;
+	int firstTaskMissDeadline = 0;
+	
+	ArrayList<Task> queue = new ArrayList<Task> ();
+	ArrayList<Task> deferrableServer = new ArrayList <Task> ();
+	
+	int [][] tasks;
+	long time = -1;
 	
 	public Schedule (int [][] tasks) {
-		for (int i=0;i<tasks.length;i++) {
-			int [] task = tasks [i];
-			this.tasks[i] = getTaskInstance (task, i);
-		}
-	}
-	
-	public int [] getTimeSlice () { // return true if feasible
-		ArrayList<Task> queue = new ArrayList<Task> ();
-		if (tasks.length == 0) return true;
-		long [] periods = new long[tasks.length];
-		for (int i=0;i<periods.length;i++) {
-			periods[i] = tasks[i][1];
-		}
-		Task.AsyncExecRemain = defferableServerExecBuget;
-		if (timeLimit == 0) timeLimit = (int) lcm (periods);
-		doneAsyncs = new int[tasks.length];
+		this.tasks = tasks;
+		//queueTasks();
 		for (int i=0;i<tasks.length;i++) {
 			if (tasks[i].length == 3) {
 				queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], tasks[i][1],0,i));
 			} else if (tasks.length > 3) {
 				if (tasks[i][3] == 0) queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], tasks[i][1],0,i));
 			}
-		}		
-		String [][] message = new String[tasks.length][timeLimit];
-		if (queue.size() > 0) {
-			for (int time=1;time<timeLimit+1;time++) {				
+		}
+	}
+	protected int [] getTimeSlice () {
+		int [] out = new int [tasks.length];
+		time++;
+		/** Begin **/
+		System.out.println("QueueSize: " + queue.size());
+		Task.AsyncExecRemain = defferableServerExecBuget;
+
+		doneAsyncs = new int[tasks.length];					
 				ListIterator<Task> li = queue.listIterator();
 				ArrayList<Task> newList = new ArrayList<Task> ();
 				if (queue.size() > 0) {
-						message[(int)queue.get(0).id][time-1] = "#";
-						for (int i=1;i<queue.size();i++) {
-							if ((int)queue.get(i).absoluteDeadline < time && (int)queue.get(i).absoluteDeadline > 0) {
-								message[(int)queue.get(i).id][time-1] = "M";
+					out [(int)queue.get(0).id] = 1;
+					for (int i=1;i<queue.size();i++) {
+						if ((int)queue.get(i).absoluteDeadline < time && (int)queue.get(i).absoluteDeadline > 0) {
+								out [(int) queue.get(i).id] = -1;
 								feasible = false;
-								notFeasibleAt = (notFeasibleAt==-1) ? (time-1) : notFeasibleAt;
+								notFeasibleAt = (int) ((notFeasibleAt==-1) ? (time-1) : notFeasibleAt);
 								firstTaskMissDeadline = (int) queue.get(i).id;
 							}
 						}
 				}
-				for (String [] elements : message) {
-					if (elements[time-1] == null) elements[time-1] = " ";
+				if (li.hasNext()) {
+					Task currentExecutingTask = li.next();
+					System.out.println ("\tTask: " + (currentExecutingTask.id) + " running at time: " + time);
+					currentExecutingTask.step(true);
+					if (!currentExecutingTask.done) {
+						if (currentExecutingTask.isPeriodic()) {
+							newList.add(currentExecutingTask);
+						} else {
+							if (Task.AsyncExecRemain > 0) newList.add(currentExecutingTask);						
+						}												
+					} else {
+						System.out.println ("\tTask: " + (currentExecutingTask.id) + " done @ time: " + time);
+					}
+					if (currentExecutingTask.SIGQUIT) {
+						doneAsyncs[(int)currentExecutingTask.id] = 1;
+					}
 				}
-				boolean passOnPriorityToNext = false;
 				while (li.hasNext()) {
 					Task current = li.next();
-					boolean executing = (queue.indexOf(current) == 0);// || passOnPriorityToNext;
-					passOnPriorityToNext = false;
-					if (!current.done) {
-						if (current.period <= 0 ) {
-							if (Task.AsyncExecRemain > 0) newList.add(current); 						
-						} else {
-							newList.add(current);
-						}
-					} else {
-						System.out.println ("\tTask: " + (current.id+1) + " done @ time: " + time);
-					}
-					if (current.SIGQUIT) {
-						doneAsyncs[(int)current.id] = 1;
-					}
+					current.step(false);
+					if (!current.done) newList.add(current);
+
 				}
 				queue.clear();				
 				queue.addAll(newList);
-				for (int i=0;i<tasks.length;i++) {
-					if (doneAsyncs[i] > 0) continue;
-					//if (tasks[i][1] < 0 && AsyncTotalRemain == 0) continue; 
-					if (tasks[i].length > 3 && tasks[i][3] == time) { // Delayed start
-						if (tasks[i][1] > 0) queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2],0,i));
-						else queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2] - time%tasks[i][2],0,i));
-					} else if (tasks[i][1] <= 0 && time % Math.abs(tasks[i][1]) == 0) {
-						if (Task.AsyncTotalRemain > 0) queue.add(this.requestTaskInstance(tasks[i][0], 0, tasks[i][2], time + tasks[i][2] - time%tasks[i][2],0,i));
-					} else if (tasks[i].length > 3 && (time-tasks[i][3])%Math.abs(tasks[i][1]) == 0) { // Delayed start period
-						if (tasks[i][1] > 0) queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2],0,i));
-					} else if (tasks[i].length == 3 && time % Math.abs(tasks[i][1]) == 0) { // at period
-						if (tasks[i][1] > 0) queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2],0,i));
-					}
-				}
-				if (time % Math.abs(defferableServerPeriod) == 0) Task.AsyncExecRemain = defferableServerExecBuget;
+
+				queueTasks ();
+				manageDeferableServer ();
+
 				ArrayList<Task> removeList = new ArrayList<Task> ();
 				if (Task.AsyncExecRemain <= 0) {
 					System.out.println("ASYNC TIME EXPIRED, REMOVING AT TIME(t) = " + time + " Async Buget = " + Task.AsyncExecRemain);
 					for (Task t : queue) {						
-						if (t.weAreAsync) {
-							System.out.println("\tREMOVING TASK WITH EXEC: " + t.exec);
+						if (!t.isPeriodic()) {
+							System.out.println("\tREMOVING TASK WITH EXEC: " + t.exec);							
 							removeList.add(t);
 						}
 					}
 				}
 				queue.removeAll(removeList);
-				Collections.sort(queue);
-			}		
+				Collections.sort(queue);					
+		
+		/** End **/				
+		return out;
+	}
 
+	private void manageDeferableServer () {
+		if (time % Math.abs(defferableServerPeriod) == 0) {
+			if (Task.AsyncExecRemain <= 0) {
+				ListIterator<Task> dsLi = deferrableServer.listIterator();
+				while (dsLi.hasNext()) {
+					Task task = dsLi.next();
+					if (!task.SIGQUIT) {
+						task.restart();
+						queue.add(task);
+					}
+			
+				}
+			}
+			Task.AsyncExecRemain = defferableServerExecBuget;					
 		}
-
+	}
+	private void queueTasks () {
+		for (int i=0;i<tasks.length;i++) {
+			if (doneAsyncs[i] > 0) continue;
+			if (tasks[i].length > 3) { // Task with a delayed start
+				Task newTask = null;
+				if (tasks[i][3] == time) { // Delayed start time is now
+					if (tasks[i][1] > 0) newTask = (this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], (int) (time + tasks[i][2]),0,i)); // Has a deadline
+					//else if (tasks[i][1] <= 0 || tasks[i][2] <= 0) queue.add(this.requestTaskInstance(tasks[i][0], 0, 0, 0,0,i)); // Deferrable Server									
+					else newTask = (this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], (int)(time + tasks[i][2] - time%tasks[i][2]),0,i));
+				} else if (tasks[i][1] != 0 && (time-tasks[i][3])%Math.abs(tasks[i][1]) == 0) { // Delayed start periodic Task
+					if (tasks[i][1] > 0) newTask = (this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], (int)(time + tasks[i][2]),0,i));
+				}
+				if (newTask != null) {
+					queue.add(newTask);
+					deferrableServer.add(newTask);
+				}
+			} else if (tasks[i][1] <= 0 ) {
+				if (tasks[i][1] == 0 || time % Math.abs(tasks[i][1]) == 0) {
+					if (Task.AsyncTotalRemain > 0) queue.add(this.requestTaskInstance(tasks[i][0], 0, tasks[i][2], (int)(time + tasks[i][2] - time%tasks[i][2]),0,i));
+				}
+			}  else if (tasks[i].length == 3 && time % Math.abs(tasks[i][1]) == 0) { // Periodic Task reached period here
+				if (tasks[i][1] > 0) queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], (int)(time + tasks[i][2]),0,i));
+			}
+		}
 	}
 	protected double getUtilization (int [][] tasks) {
 		double U = 0;

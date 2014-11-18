@@ -5,7 +5,7 @@ import java.util.ArrayList;
 		int period;
 		ArrayList<Resource> resourceInfo = new ArrayList<Resource> ();
 		int exec;
-		boolean weAreAsync = false;
+		private boolean weAreAsync = false;
 		boolean weJustRan = false;
 		// Async Task data
 		static int AsyncTotalRemain = 0;
@@ -37,6 +37,9 @@ import java.util.ArrayList;
 				//AsyncExecRemain = Scheduler.defferableServerExecBuget;
 				
 			}
+		}
+		public boolean isPeriodic () {
+			return !this.weAreAsync;
 		}
 		protected void restart () {
 			if (this.weAreAsync) done = false;
