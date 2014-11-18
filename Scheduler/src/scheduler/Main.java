@@ -21,7 +21,7 @@ public class Main {
 		int [][] tasks_a4_q1i = new int[][] {{3,5,7},{1,4,5},{1,-6,6,2},{2,-6,6,5}};
 		
 		
-		int [][] practice_2 = new int [][] {{10,50,50},{20,60,60},{17,-6,6,35},{5,-6,6,90}};
+		int [][] practice_2 = new int [][] {{10,50,50},{20,60,60},{17,-6,-40,35},{5,-6,-40,90}};
 		scheduler.defferableServerExecBuget = 10;
 		scheduler.defferableServerPeriod    = 40;
 		scheduler.schedule (practice_2, timeLimit);

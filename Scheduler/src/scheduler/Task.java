@@ -27,18 +27,19 @@ import java.util.ArrayList;
 			this.id = id;
 			this.releaseOffset = releaseOffset;
 			
-			if (period <= 0) weAreAsync = true;
-			else weAreAsync = false;
 			// Async Task data
-			if (period < 0) {
-				
+			if (period <= 0) {
+				weAreAsync = true;
 				AsyncTotalRemain += exec;
-				System.out.println("Adding Asyncronous task: " + exec);	
+				System.out.println("Adding Asyncronous task: " + id);	
 			} else if (period == 0) {
 				System.out.println("Deffereable Server Period Change: " + exec);
 				//AsyncExecRemain = Scheduler.defferableServerExecBuget;
 				
 			}
+		}
+		protected void restart () {
+			if (this.weAreAsync) done = false;
 		}
 		protected void step (boolean areWeRunning) { // 0 if nothing -1 if deadline missed 1 if done exec
 			if (this.period > 0) {
@@ -51,14 +52,21 @@ import java.util.ArrayList;
 					AsyncTotalRemain = Math.max(0, AsyncTotalRemain - 1);
 					AsyncExecRemain = Math.max(0, AsyncExecRemain - 1);	
 					execRemain = Math.max(0, execRemain - 1);
+					if (AsyncTotalRemain == 0 || AsyncExecRemain == 0 || execRemain == 0) {
+						System.out.println("AsyncTask " + id + " done");
+						done = true;					
+					}
+					System.out.println("Task " + id + " (done) is " + done + " AsyncTotalRemain: " + AsyncTotalRemain + ", execRemain: " + execRemain + " , AsyncExecRemain: " + AsyncExecRemain);					
 				}
-				if (AsyncTotalRemain == 0 || AsyncExecRemain == 0 || execRemain == 0) done = true;
-				System.out.println("AsyncTotalRemain: " + AsyncTotalRemain + ", AsyncExecRemain: " + AsyncExecRemain);	
 			}
-			if (execRemain == 0 && period <= 0) SIGQUIT = true;
+			if (execRemain == 0 && period <= 0) {
+				System.out.println("AsyncTask " + this.id + " done executing: SIGQUIT");
+				SIGQUIT = true;
+			}
 			if (areWeRunning) {
 				weJustRan = true;
 			} else weJustRan = false;
+			if (this.weAreAsync) System.out.println("AsyncTotalRemaining: " + AsyncTotalRemain);
 		}		
 		public int compareTo (Task task) {
 			if (Scheduler.deferrableServerHasHighestPriority) {

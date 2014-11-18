@@ -8,9 +8,11 @@ public class Scheduler {
 	static int defferableServerExecBuget = 1;
 	static int defferableServerPeriod = 6;
 	static boolean deferrableServerHasHighestPriority = true;
+	
 
 	
 	public boolean schedule (int[][] tasks, int timeLimit) { // return true if feasible
+		ArrayList<Task> deferrableServer = new ArrayList <Task> ();
 		System.out.print("Schedule: ");
 		for (int [] task : tasks) {
 			System.out.print("{");
@@ -49,7 +51,7 @@ public class Scheduler {
 						message[(int)queue.get(0).id][time-1] = "#";
 						for (int i=1;i<queue.size();i++) {
 							if ((int)queue.get(i).absoluteDeadline < time && (int)queue.get(i).absoluteDeadline > 0) {
-								message[(int)queue.get(i).id][time-1] = "M";
+								message[(int) queue.get(i).id][time-1] = "M";
 								feasible = false;
 								notFeasibleAt = (notFeasibleAt==-1) ? (time-1) : notFeasibleAt;
 								firstTaskMissDeadline = (int) queue.get(i).id;
@@ -75,12 +77,12 @@ public class Scheduler {
 					//}
 					if (!current.done) {
 						if (current.period <= 0 ) {
-							if (Task.AsyncExecRemain > 0) newList.add(current); 						
+							if (Task.AsyncExecRemain > 0) newList.add(current);						
 						} else {
 							newList.add(current);
 						}
 					} else {
-						System.out.println ("\tTask: " + (current.id+1) + " done @ time: " + time);
+						System.out.println ("\tTask: " + (current.id) + " done @ time: " + time);
 					}
 					if (current.SIGQUIT) {
 						doneAsyncs[(int)current.id] = 1;
@@ -91,24 +93,47 @@ public class Scheduler {
 				for (int i=0;i<tasks.length;i++) {
 					if (doneAsyncs[i] > 0) continue;
 					//if (tasks[i][1] < 0 && AsyncTotalRemain == 0) continue; 
-					if (tasks[i].length > 3 && tasks[i][3] == time) { // Delayed start
-						if (tasks[i][1] > 0) queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2],0,i));
-						else queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2] - time%tasks[i][2],0,i));
-					} else if (tasks[i][1] <= 0 && time % Math.abs(tasks[i][1]) == 0) {
-						if (Task.AsyncTotalRemain > 0) queue.add(this.requestTaskInstance(tasks[i][0], 0, tasks[i][2], time + tasks[i][2] - time%tasks[i][2],0,i));
-					} else if (tasks[i].length > 3 && (time-tasks[i][3])%Math.abs(tasks[i][1]) == 0) { // Delayed start period
-						if (tasks[i][1] > 0) queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2],0,i));
-					} else if (tasks[i].length == 3 && time % Math.abs(tasks[i][1]) == 0) { // at period
+					if (tasks[i].length > 3) {
+						Task newTask = null;
+						if (tasks[i][3] == time) { // Delayed start
+							if (tasks[i][1] > 0) newTask = (this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2],0,i));
+							//else if (tasks[i][1] <= 0 || tasks[i][2] <= 0) queue.add(this.requestTaskInstance(tasks[i][0], 0, 0, 0,0,i)); // Deferrable Server									
+							else newTask = (this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2] - time%tasks[i][2],0,i));
+						} else if (tasks[i][1] != 0 && (time-tasks[i][3])%Math.abs(tasks[i][1]) == 0) { // Delayed start periodic Task
+							if (tasks[i][1] > 0) newTask = (this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2],0,i));
+						}
+						if (newTask != null) {
+							queue.add(newTask);
+							deferrableServer.add(newTask);
+						}
+					} else if (tasks[i][1] <= 0 ) {
+						if (tasks[i][1] == 0 || time % Math.abs(tasks[i][1]) == 0) {
+							if (Task.AsyncTotalRemain > 0) queue.add(this.requestTaskInstance(tasks[i][0], 0, tasks[i][2], time + tasks[i][2] - time%tasks[i][2],0,i));
+						}
+					}  else if (tasks[i].length == 3 && time % Math.abs(tasks[i][1]) == 0) { // Periodic Task reached period here
 						if (tasks[i][1] > 0) queue.add(this.requestTaskInstance(tasks[i][0], tasks[i][1], tasks[i][2], time + tasks[i][2],0,i));
 					}
 				}
-				if (time % Math.abs(defferableServerPeriod) == 0) Task.AsyncExecRemain = defferableServerExecBuget;
+				if (time % Math.abs(defferableServerPeriod) == 0) {
+					if (Task.AsyncExecRemain <= 0) {
+						ListIterator<Task> dsLi = deferrableServer.listIterator();
+						while (dsLi.hasNext()) {
+							Task task = dsLi.next();
+							if (!task.SIGQUIT) {
+								task.restart();
+								queue.add(task);
+							}
+					
+						}
+					}
+					Task.AsyncExecRemain = defferableServerExecBuget;					
+				}
 				ArrayList<Task> removeList = new ArrayList<Task> ();
 				if (Task.AsyncExecRemain <= 0) {
 					System.out.println("ASYNC TIME EXPIRED, REMOVING AT TIME(t) = " + time + " Async Buget = " + Task.AsyncExecRemain);
 					for (Task t : queue) {						
 						if (t.weAreAsync) {
-							System.out.println("\tREMOVING TASK WITH EXEC: " + t.exec);
+							System.out.println("\tREMOVING TASK WITH EXEC: " + t.exec);							
 							removeList.add(t);
 						}
 					}
