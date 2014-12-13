@@ -1,31 +1,33 @@
 package scheduler;
-import java.util.ArrayList;
 
 	public class PeriodicTask extends Task implements Comparable {
-		private int period     = 0;
-		private int deadline   = 0;
-		private int execReq    = 0;
+		private final int period;
+		private final int deadline;	
+		private final int started_at;
 		
-		private int execRemain = 0;
-		
-		public PeriodicTask(int[][] tasks) {
-			super(tasks);
-			period   = tasks [0][2];
-			deadline = tasks [0][1];
-			execReq  = tasks [0][0];			
+		public PeriodicTask(int execution, int period, int deadline, int dispatchedTime, int index) {
+			super (execution,index);
+			this.started_at = dispatchedTime;
+			this.period   = period;
+			this.deadline = deadline;			
 		}
-		
-		@Override
-		public int [] getTimeSlice () {
-			
+		public int getPeriod () {
+			return this.period;
 		}
-		public int compareTo (Task task) {
-			return 0;
+		public int getDeadline () {
+			return this.deadline;
+		}
+		public int getAbsoluteDeadline () {
+			return this.started_at + this.deadline;
+		}
+		public int compareTo (PeriodicTask task) {
+			if (this.period == task.period) return 0;
+			else return (this.period > task.period) ? 1 : -1;
 		}
 		@Override
 		public int compareTo(Object o) {
-			if (o instanceof Task) {
-				return compareTo((Task) o);
+			if (o instanceof PeriodicTask) {
+				return compareTo((PeriodicTask) o);
 			}
 			return 0;
 		}

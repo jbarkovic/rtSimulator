@@ -1,24 +1,17 @@
 package scheduler;
 
-public class EDF extends Scheduler {
+public class EDF extends Schedule {
 	@Override
-	protected Task getTaskInstance (int exec, int period, int deadline, int absoluteDeadline, int releaseOffset,long id) {
-		return new EDFTask(exec, period, deadline, absoluteDeadline, releaseOffset,id);
-	}
-	private class EDFTask extends Task implements Comparable{	
-
-		public EDFTask(int exec, int period, int deadline, int absoluteDeadline ,int releaseOffset, long id) {		
-			super(exec, period, deadline, absoluteDeadline,releaseOffset, id);
-		}		
-		@Override
-		public int compareTo (Task compareTo) {
-			int result = 0;
-			if (this.absoluteDeadline < compareTo.absoluteDeadline) result = -1;
-			else if (this.absoluteDeadline == compareTo.absoluteDeadline) {
-				result = 0;//(this.id > task.id) ? 1 : -1;
-			}
-			else result = 1;
-			return result + super.compareTo(compareTo); 
+	public int compare (Task t1, Task t2) {
+		if (! (t1 instanceof PeriodicTask) || ! (t2 instanceof PeriodicTask)) {
+			return 0;
+		}
+		else {
+			PeriodicTask pt1 = (PeriodicTask) t1;
+			PeriodicTask pt2 = (PeriodicTask) t2;
+			if (pt1.getAbsoluteDeadline() < pt2.getAbsoluteDeadline()) return -1;
+			else if (pt1.getAbsoluteDeadline() == pt2.getAbsoluteDeadline()) return (pt1.hasRunYet()) ? -1 : 1;
+			else return 1;						
 		}
 	}
 }

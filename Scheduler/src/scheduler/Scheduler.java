@@ -1,145 +1,115 @@
 package scheduler;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.ListIterator;
 
 public class Scheduler {
-	int [] doneAsyncs;
-	static int defferableServerExecBuget = 1;
-	static int defferableServerPeriod = 6;
-	static boolean deferrableServerHasHighestPriority = true;
+	protected RunResult [][][] schedule;
+	protected DeferrableServer [] dsList;
+	protected int [][] tasks;
+	protected int timeLimit;
+	protected long time = 0;
+	protected Schedule queue;
 	
-
+	protected static int DEBUG = 1;
 	
-	public boolean schedule (int[][] tasks, int timeLimit) { // return true if feasible
-		System.out.print("Schedule: ");
-		for (int [] task : tasks) {
-			System.out.print("{");
-			for (int value : task) {
-				System.out.print(" " + value + " ");
-			}
-			System.out.print("} ");
-		}
-		System.out.print("\n");
-		boolean showBars = true;
-
-		long [] periods = new long[tasks.length];
-		for (int i=0;i<periods.length;i++) {
-			periods[i] = tasks[i][1];
-		}
-		
-		if (timeLimit == 0) timeLimit = (int) lcm (periods);
-		String [][] message = new String[tasks.length][timeLimit];
-		
-		/**START**/
-		
-		Schedule schedule = new Schedule (tasks);
-		schedule.deferrableServerHasHighestPriority = this.deferrableServerHasHighestPriority;
-		schedule.defferableServerExecBuget = this.defferableServerExecBuget;
-		schedule.defferableServerPeriod = this.defferableServerPeriod;
-		
-		int [][] scheduleArray = new int [tasks.length][timeLimit];
-		for (int time=0;time<timeLimit;time++) {
-			int [] timeSlice = schedule.getTimeSlice();
-			for (int row=0;row<scheduleArray.length;row++) {
-				scheduleArray[row][time] = timeSlice [row];
-			}
-		}
-		for (int row=0;row<message.length;row++) {
-			for (int col=0;col<message[row].length;col++) {
-				switch (scheduleArray [row][col]) {
-					case -1 :{
-						message [row][col] = "M";
-						break;
-					}
-					case 0  : {
-						message [row][col] = " ";
-						break;
-					}
-					case 1  : {
-						message [row][col] = "#";
-						break;
-					}
-				}
-			}
-		}
-		/** END **/
-		System.out.print("\n");
-		for (int row = 0;row<message.length;row++) {
-			if (tasks[row][1] <= 0) {
-				System.out.print("DS: ");
-			}
-			System.out.print("(");
-			for (int i=0;i<tasks[row].length;i++) {
-				System.out.print(tasks[row][i]);
-				if ((i+1) < tasks[row].length) System.out.print(",");				
-			}
-			System.out.print(") : \n");
-			for (int i=0;i<=timeLimit;i++) {
-				if (tasks[row][1] <= 0) {
-					if (tasks[row].length > 3 && i == tasks[row][3]) {
-						System.out.print("R" + ((showBars)? " " : ""));
-					} else if (i % Math.abs(tasks[row][1]) == 0) {						
-						System.out.print("V" + ((showBars)? " " : ""));					
-					} else {					
-						System.out.print(" "+((showBars)? " " : ""));
-					}
-				} else if (tasks[row][1] > 0 ){
-					if (tasks[row].length > 3 && i == tasks[row][3]) {
-						System.out.print("R" + ((showBars)? " " : ""));
-					} else if (tasks[row].length > 3 && (i-tasks[row][3]) % tasks[row][1] == 0) {				
-						System.out.print("V" + ((showBars)? " " : ""));
-					} else if (tasks[row].length == 3 && i % Math.abs(tasks[row][1]) == 0) {
-						System.out.print("V"+((showBars)? " " : ""));
-					} else {
-						System.out.print(" "+((showBars)? " " : ""));
-					}
-				}
-			}
-			System.out.print("\n");
-			for (String element : message[row]) {
-				String symbol = (element == null) ? " " : element;
-				System.out.print(((showBars)? "|" : "")+symbol);
-			}
-			System.out.print("|\n");
-
-		}
-		int depth = 0;
-		int time = timeLimit;
-		while (time > 0) {
-			time = time / 10;
-			depth ++;
-		}
-		String [][] timeStamps = new String [depth][timeLimit+1];
-		//String [][] timeStamps = new String [((timeLimit+1)/100)+1][timeLimit+1];
-		timeStamps[0][0] = "0" + ((showBars)? " " : "");
-		for (int i=0;i<timeStamps.length;i++) {
-			boolean nonZeroFound = false;			
-			for (int j=0;j<timeStamps[0].length;j++) {
-				if ((j+i) == 0) continue;
-				int val = j;
-				val = (val%((int) Math.pow(10, (i+1))));			
-				val = (val/((int) Math.pow(10, (i))));
-				nonZeroFound = nonZeroFound || (val != 0);
-				if (nonZeroFound) timeStamps[i][j] = "" + val + ((showBars)? " " : "");
-				else timeStamps[i][j] = " " + ((showBars)? " " : "");
-			}
-			int k = i;		
-		}
-		for (String [] row : timeStamps) {
-			for (String element : row) {
-				System.out.print(element);
-			}
-			System.out.print("\n");
-		}
-		System.out.print("\n");
-		System.out.print("\n");
-		String feasibleMessage = "System " + ((schedule.feasible) ? "IS" : "IS NOT" ) + " feasible" + ((schedule.feasible) ? "" : (", Task " + (schedule.firstTaskMissDeadline+1) + " misses it's deadline of t=" + schedule.notFeasibleAt) );
-		System.out.println(feasibleMessage);
-		double U = getUtilization(tasks);
-		System.out.println("\nUtilization = " + U);
-		return schedule.feasible;
+	public Scheduler (int [][] tasks, int timeLimit, DeferrableServer [] dsList, Schedule schedAlgorithm) {
+		this.queue = schedAlgorithm;
+		if (dsList != null) this.dsList = dsList;
+		else this.dsList = new DeferrableServer [0];
+		this.tasks = tasks;
+		this.timeLimit = timeLimit + 1;
 	}
+	protected Task getTask (int [] taskParameters, int index) {
+		if (DEBUG > 0) System.out.println("Adding task number: " + index + " at time = " + time + " with parameters: " + Arrays.toString(taskParameters));		
+		return new PeriodicTask (taskParameters[0], taskParameters[1], taskParameters[2], (int) time, index);
+	}
+	protected void dispatchTasks () {
+		for (int i=0;i<tasks.length;i++) {
+			if (tasks [i][1] > 0) { //Periodic
+				if (tasks [i].length == 3) {
+					if (time % tasks [i][1] == 0) {
+						queue.add(getTask (tasks [i] , i));
+					}
+				} else if (tasks [i].length > 3) { /*Start With a Delay*/
+					if (tasks[i][3] == time) {
+						queue.add(getTask (tasks [i] , i));
+					} else if (time > tasks [i][3] && (time - tasks[i][3]) % tasks[i][1] == 0) {
+						queue.add(getTask (tasks [i] , i));
+					}					
+				}
+			}
+		}
+		if (time == 0) {
+			for (int j=0;j<this.dsList.length;j++) {
+				queue.add(this.dsList[j]);
+				this.dsList [j].setIndex(tasks.length + j);
+			}
+		}
+	}
+	protected RunResult [][] iterate () {
+		dispatchTasks ();		
+		Collections.sort(queue,queue);
+		
+		RunResult [][] iterationResult = new RunResult [tasks.length + dsList.length][];
+		
+		/* Next: Figure out if anybody has missed their deadlines*/
+		ListIterator<Task> li = queue.listIterator(); // Start from the beginning in case the current task also missed its deadline
+		while (li.hasNext()) {
+			Task t = li.next();
+			if (t instanceof PeriodicTask && !(t instanceof DeferrableServer)) {
+				PeriodicTask pt = (PeriodicTask) t;
+				int timeOffset = (int) time;
+				/* Check For Missed Deadline */
+				if (!pt.isDone() && timeOffset >= pt.getDeadline() && timeOffset == pt.getAbsoluteDeadline()) {
+					if (DEBUG > 0) System.out.println("\tTask " + pt.getIndex() + " " + Arrays.toString(tasks[pt.getIndex()]) + " Missed its deadline at time t=" +time);
+					
+					RunResult [] thisResult = new RunResult [] {RunResult.NOT_EXECUTED,RunResult.TASK_MISSED_DEADLINE};
+					iterationResult [pt.getIndex()] = thisResult;
+				}
+			}
+		}
+		for (int i=0;i<iterationResult.length;i++) {
+			if (iterationResult [i] == null) {
+				iterationResult [i] = new RunResult [] {RunResult.NOT_EXECUTED};
+			}
+		}
+		li = queue.listIterator();
+		FindSomethingToExecute : {
+			while (li.hasNext()) {
+				Task current = li.next();
+				RunResult [] tempResult = current.step(time);
+				if (tempResult.length == 0) {
+					System.err.println("ERROR: No result from simulated task execution of task # " + current.getIndex() + ". Nothing may have been executed at time (" + time + "), please check the schedule.");
+					break;
+				}
+				else {
+					for (RunResult res : tempResult) {
+						if (res == RunResult.EXECUTED) {						
+							RunResult [] old = iterationResult [current.index]; 
+							iterationResult [current.index] = new RunResult [old.length + tempResult.length];
+							int pointer = 0;
+							for (;pointer<old.length;pointer++) iterationResult [current.index][pointer] = old[pointer];
+							for (int tempPointer=0;pointer<old.length+tempResult.length;tempPointer++,pointer++) iterationResult [current.index][pointer] = tempResult [tempPointer];							 
+							if (current.isDone()) li.remove();
+							break FindSomethingToExecute;
+						}
+					}
+				}
+			}
+		}
+		return iterationResult;
+	} 
+	public RunResult [][][] schedule () { // return true if feasible
+		this.schedule = new RunResult [this.timeLimit][][];
+		for (int i=0;i<this.timeLimit;i++) {
+			this.schedule[i] = this.iterate();
+			time++;
+		}
+		return this.schedule;	
+	}
+	
 	protected double getUtilization (int [][] tasks) {
 		double U = 0;
 		for (int [] task : tasks) {
@@ -178,13 +148,5 @@ public class Scheduler {
 	    long result = input[0];
 	    for(int i = 1; i < input.length; i++) result = lcm(result, input[i]);
 	    return result;
-	}
-	private Task requestTaskInstance (int exec, int period, int deadline, int absoluteDeadline,int releaseOffset, long id) {
-		//System.out.println("Requested Task: exec: " + exec + " , period: " + period + " , deadline " + deadline);
-		//if (period == 0 || period < 0) return AsyncTask.getInstance (exec, -period, deadline, absoluteDeadline,releaseOffset, id);
-		 return getTaskInstance (exec, period, deadline, absoluteDeadline, releaseOffset, id);
-	}
-	protected Task getTaskInstance (int exec, int period, int deadline, int absoluteDeadline,int releaseOffset, long id) {
-		return new Task (exec, period, deadline, absoluteDeadline,releaseOffset, id);
 	}
 }

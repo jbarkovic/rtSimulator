@@ -1,24 +1,16 @@
 package scheduler;
-public class RM extends Scheduler {
+public class RM extends Schedule {
 	@Override
-	protected Task getTaskInstance (int exec, int period, int deadline, int absoluteDeadline, int releaseOffset,long id) {
-		return new RMTask(exec, period, deadline, absoluteDeadline, releaseOffset,id);
-	}
-	private class RMTask extends Task implements Comparable{	
-
-		public RMTask(int exec, int period, int deadline, int absoluteDeadline ,int releaseOffset, long id) {		
-			super(exec, period, deadline, absoluteDeadline, releaseOffset, id);
+	public int compare (Task t1, Task t2) {
+		if (! (t1 instanceof PeriodicTask) || ! (t2 instanceof PeriodicTask)) {
+			return 0;
 		}
-		@Override
-		public int compareTo (Task compareTo) {	
-			//System.out.println("USING RM PRIORITIES");
-			int result = 0;
-			if (Math.abs(this.period) < Math.abs(compareTo.period)) result = -1;
-			else if (Math.abs(this.period) == Math.abs(compareTo.period)) {
-				result = 0;//(this.id > task.id) ? 1 : -1;
-			}
-			else result = 1;
-			return result + super.compareTo(compareTo); 
+		else {
+			PeriodicTask pt1 = (PeriodicTask) t1;
+			PeriodicTask pt2 = (PeriodicTask) t2;
+			if (pt1.getPeriod() < pt2.getPeriod()) return -1;
+			else if (pt1.getPeriod() == pt2.getPeriod()) return (pt1.getIndex() < pt2.getIndex()) ? -1 : 1;
+			else return 1;						
 		}
 	}
 }
